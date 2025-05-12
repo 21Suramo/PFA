@@ -1,0 +1,45 @@
+# === Python ===
+*.pyc
+__pycache__/
+*.pyo
+*.pyd
+*.db
+*.sqlite3
+
+# Environnements virtuels
+venv/
+*/venv/
+
+# === Node.js ===
+node_modules/
+npm-debug.log
+yarn-debug.log
+yarn-error.log
+dist/
+.cache/
+
+# === macOS ===
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# === Visual Studio Code / JetBrains ===
+.vscode/
+.idea/
+
+# === Logs ===
+*.log
+logs/
+*.bak
+
+# === Systemd ou fichiers temporaires ===
+*.pid
+*.sock
+*.swp
+*.tmp
+
+# === Output local ou fichiers temporaires ===
+.env
+.env.*

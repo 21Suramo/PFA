@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Surveillance IRM – Dashboard</title>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet" />
+  <style>
+    :root {
+      --bg: #f9fafb;
+      --card-bg: #ffffff;
+      --text: #1f2937;
+      --subtext: #6b7280;
+      --accent: #e11d48;   /* rouge */
+      --primary: #2563eb;  /* bleu */
+      --font: 'Inter', sans-serif;
+    }
+    *, *::before, *::after {
+      box-sizing: border-box;
+      margin: 0; padding: 0;
+    }
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+    }
+    .container {
+      max-width: 1000px;
+      margin: 0 auto;
+      padding: 1rem;
+    }
+    header {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    header h1 {
+      font-size: 2.5rem;
+      font-weight: 700;
+    }
+    header p {
+      color: var(--subtext);
+      margin-top: 0.5rem;
+      font-size: 1.1rem;
+    }
+
+    /* === Flux Caméra === */
+    #live-camera {
+      text-align: center;
+      margin-bottom: 2rem;
+    }
+    #live-camera h2 {
+      font-size: 1.5rem;
+      margin-bottom: 0.5rem;
+    }
+    #live-camera img {
+      max-width: 100%;
+      height: auto;
+      border: 2px solid #ccc;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+    }
+
+    /* === Cartes Moyennes === */
+    .stats {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px,1fr));
+      gap: 1rem;
+      margin-bottom: 2rem;
+    }
+    .card {
+      background: var(--card-bg);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+      text-align: center;
+    }
+    .card h2 {
+      font-size: 1.125rem;
+      font-weight: 600;
+      color: var(--subtext);
+      margin-bottom: 0.5rem;
+    }
+    .card p {
+      font-size: 2.5rem;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    /* === Section Graphiques === */
+    #chart-section {
+      background: var(--card-bg);
+      border-radius: 0.75rem;
+      padding: 1.5rem;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.05);
+    }
+    #chart-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 1rem;
+    }
+    #chart-header h2 {
+      font-size: 1.5rem;
+      font-weight: 600;
+    }
+    #refresh-btn {
+      background: none;
+      border: none;
+      font-size: 1.5rem;
+      color: var(--primary);
+      cursor: pointer;
+      transition: transform .2s;
+    }
+    #refresh-btn:hover {
+      transform: rotate(20deg);
+    }
+    .charts-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(300px,1fr));
+      gap: 1rem;
+    }
+    .chart-card {
+      text-align: center;
+    }
+    .chart-card h3 {
+      font-size: 1rem;
+      color: var(--subtext);
+      margin-bottom: 0.5rem;
+    }
+    canvas {
+      width: 100% !important;
+      height: 300px !important;
+    }
+
+    @media (max-width: 600px) {
+      header h1 { font-size: 2rem; }
+      #live-camera h2 { font-size: 1.25rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Surveillance IRM</h1>
+      <p>Pression & Température en temps réel</p>
+    </header>
+
+    <section id="live-camera">
+      <h2>Flux Caméra Live</h2>
+      <img src="http://localhost:5000/video_feed" alt="Flux Live Caméra" />
+    </section>
+
+    <section class="stats">
+      <div class="card">
+        <h2>Température Moyenne</h2>
+        <p id="avgTemp">-- °C</p>
+      </div>
+      <div class="card">
+        <h2>Pression Moyenne</h2>
+        <p id="avgPres">-- Pa</p>
+      </div>
+    </section>
+
+    <section id="chart-section">
+      <div id="chart-header">
+        <h2>Évolution des Indicateurs</h2>
+        <button id="refresh-btn" title="Rafraîchir">🔄</button>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <h3>Température (°C)</h3>
+          <canvas id="tempChart"></canvas>
+        </div>
+        <div class="chart-card">
+          <h3>Pression (Pa)</h3>
+          <canvas id="presChart"></canvas>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const API_URL = "http://localhost:5000/data"; // Remplace par IP réelle
+
+    let tempChart, presChart;
+
+    async function fetchData() {
+      try {
+        const res = await fetch(API_URL);
+        if (!res.ok) throw new Error("Erreur serveur");
+        const d = await res.json();
+        return [{
+          time: new Date(d.timestamp).toLocaleTimeString("fr-FR"),
+          temperature: parseFloat(d.temperature),
+          pression: parseFloat(d.pression)
+        }];
+      } catch (err) {
+        console.error("Erreur fetch :", err);
+        return [];
+      }
+    }
+
+    function updateAverages(data) {
+      if (!data.length) return;
+      document.getElementById("avgTemp").textContent = `${data[0].temperature.toFixed(1)} °C`;
+      document.getElementById("avgPres").textContent = `${data[0].pression.toFixed(1)} Pa`;
+    }
+
+    async function renderCharts() {
+      const data = await fetchData();
+      updateAverages(data);
+
+      const labels = data.map(d => d.time);
+      const temps = data.map(d => d.temperature);
+      const press = data.map(d => d.pression);
+
+      const accent = getComputedStyle(document.documentElement).getPropertyValue('--accent').trim();
+      const primary = getComputedStyle(document.documentElement).getPropertyValue('--primary').trim();
+
+      // Température
+      const tCtx = document.getElementById('tempChart').getContext('2d');
+      if (!tempChart) {
+        tempChart = new Chart(tCtx, {
+          type: 'line',
+          data: { labels, datasets: [{ label: 'Température', data: temps, borderColor: accent, fill: false, tension: 0.3 }] },
+          options: { responsive: true, scales: { x: { title: { display: true, text: 'Heure' } } } }
+        });
+      } else {
+        tempChart.data.labels = labels;
+        tempChart.data.datasets[0].data = temps;
+        tempChart.update();
+      }
+
+      // Pression
+      const pCtx = document.getElementById('presChart').getContext('2d');
+      if (!presChart) {
+        presChart = new Chart(pCtx, {
+          type: 'line',
+          data: { labels, datasets: [{ label: 'Pression', data: press, borderColor: primary, fill: false, tension: 0.3 }] },
+          options: { responsive: true, scales: { x: { title: { display: true, text: 'Heure' } } } }
+        });
+      } else {
+        presChart.data.labels = labels;
+        presChart.data.datasets[0].data = press;
+        presChart.update();
+      }
+    }
+
+    document.getElementById('refresh-btn').addEventListener('click', renderCharts);
+    renderCharts();
+    setInterval(renderCharts, 5000);
+  </script>
+</body>
+</html>

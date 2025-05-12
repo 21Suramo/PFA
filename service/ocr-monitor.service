@@ -1,0 +1,15 @@
+# /etc/systemd/system/ocr-monitor.service
+
+[Unit]
+Description=Service OCR caméra (Température & Pression)
+After=network.target
+
+[Service]
+WorkingDirectory=/home/pi/PFA/raspberry_pi
+ExecStart=/home/pi/PFA/raspberry_pi/venv/bin/python main.py
+Restart=always
+User=pi
+Environment="PYTHONUNBUFFERED=1"
+
+[Install]
+WantedBy=multi-user.target
