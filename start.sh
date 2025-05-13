@@ -1,17 +1,18 @@
 #!/bin/bash
 
-echo "⏳ Démarrage du backend Flask..."
-cd backend
-source ../venv_backend/bin/activate  # ou adapte selon ton environnement
-python app.py &
-FLASK_PID=$!
+echo "🚀 Lancement dans 3 terminaux séparés..."
 
-sleep 2
+# Terminal 1 : BACKEND FLASK
+lxterminal --title="Backend Flask" --working-directory=~/PFA/backend \
+  --command="bash -c 'source ./venv/bin/activate && python app.py; exec bash'" &
 
-echo "⏳ Démarrage du script de capture OCR..."
-cd ../raspberry_pi
-source ../venv_raspberry/bin/activate  # adapte selon ton venv
-python capture_ocr.py
+# Terminal 2 : FRONTEND STATIC SERVER
+lxterminal --title="Frontend" --working-directory=~/PFA/frontend \
+  --command="bash -c 'python3 -m http.server 8001; exec bash'" &
 
-# Pour arrêter Flask à la fin (si capture_ocr se termine un jour)
-kill $FLASK_PID
+# Terminal 3 : RASPBERRY OCR
+lxterminal --title="OCR Capture" --working-directory=~/PFA/raspberry_pi \
+  --command="bash -c 'source ./venv/bin/activate && python capture_ocr.py; exec bash'" &
+
+echo "✅ Lancement terminé. Les fenêtres vont s’ouvrir."
+
