@@ -1,46 +1,57 @@
+from flask import Flask, request, jsonify, Response
+from flask_cors import CORS
+from database import init_db, insert_reading, get_all_readings, get_latest_reading
 import cv2
-import pytesseract
-import requests
-import time
 
-# Configuration des zones ROI
-TEMP_ROI = (100, 100, 200, 50)    # (x, y, w, h) à adapter selon ton écran
-PRESS_ROI = (100, 200, 200, 50)
+app = Flask(__name__)
+CORS(app)
 
-API_URL = "http://localhost:8000/add_reading"  # Adapter si l’API est sur un autre host
+# === API : Enregistrement des données OCR ===
 
-def extract_text_from_roi(frame, roi):
-    x, y, w, h = roi
-    roi_img = frame[y:y+h, x:x+w]
-    gray = cv2.cvtColor(roi_img, cv2.COLOR_BGR2GRAY)
-    return pytesseract.image_to_string(gray, config='--psm 7').strip()
+@app.route('/data', methods=['POST'])
+def add_reading():
+    data = request.get_json()
+    try:
+        temperature = float(data.get('temperature'))
+        pression = float(data.get('pression'))
+        timestamp = data.get('timestamp')
+        insert_reading(timestamp, temperature, pression)
+        return jsonify({"message": "✅ Données enregistrées"}), 200
+    except Exception as e:
+        return jsonify({"error": f"❌ Données invalides: {e}"}), 400
 
-def main():
-    cap = cv2.VideoCapture(0)  # 0 = première webcam USB
+@app.route('/data', methods=['GET'])
+def get_all():
+    readings = get_all_readings()
+    return jsonify(readings)
+
+@app.route('/data/latest', methods=['GET'])
+def get_latest():
+    latest = get_latest_reading()
+    return jsonify(latest if latest else {})
+
+# === Flux vidéo MJPEG (caméra live) ===
+
+def gen_frames():
+    cap = cv2.VideoCapture(0)
     if not cap.isOpened():
-        print("Erreur: webcam introuvable.")
-        return
-
+        raise RuntimeError("❌ Webcam non détectée")
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        success, frame = cap.read()
+        if not success:
             continue
+        _, buffer = cv2.imencode('.jpg', frame)
+        frame = buffer.tobytes()
+        yield (b'--frame\r\n'
+               b'Content-Type: image/jpeg\r\n\r\n' + frame + b'\r\n')
 
-        temperature = extract_text_from_roi(frame, TEMP_ROI)
-        pressure = extract_text_from_roi(frame, PRESS_ROI)
+@app.route('/video_feed')
+def video_feed():
+    return Response(gen_frames(),
+                    mimetype='multipart/x-mixed-replace; boundary=frame')
 
-        print(f"Temp: {temperature} | Press: {pressure}")
+# === Lancement de l'application ===
 
-        try:
-            requests.post(API_URL, json={
-                "temperature": temperature,
-                "pressure": pressure
-            })
-            print("✅ Données envoyées à l'API")
-        except Exception as e:
-            print(f"Erreur d’envoi : {e}")
-
-        time.sleep(5)  # pause de 5 secondes entre les captures
-
-if __name__ == "__main__":
-    main()
+if __name__ == '__main__':
+    init_db()
+    app.run(host='0.0.0.0', port=5000)

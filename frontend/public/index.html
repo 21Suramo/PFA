@@ -193,11 +193,12 @@
         const res = await fetch(API_URL);
         if (!res.ok) throw new Error("Erreur serveur");
         const d = await res.json();
-        return [{
-          time: new Date(d.timestamp).toLocaleTimeString("fr-FR"),
-          temperature: parseFloat(d.temperature),
-          pression: parseFloat(d.pression)
-        }];
+        return d.map(r => ({
+          time: new Date(r.timestamp).toLocaleTimeString("fr-FR"),
+          temperature: parseFloat(r.temperature),
+          pression: parseFloat(r.pression)
+        }));
+
       } catch (err) {
         console.error("Erreur fetch :", err);
         return [];
